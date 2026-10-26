@@ -19,9 +19,10 @@ Features Implemented:
 10. Transport & Ride Logging (vehicle details, driver ID, emergency sharing)
 11. Wearable Integration & Telemetry (device status, heart rate, fall detection trigger)
 12. Fake Call System & Audio Management (custom audio clip upload metadata, active clip selection)
-13. Activity Log & Timeline Audit (events tracking across all safety actions)
-14. Notification Engine (push/in-app alert dispatching)
-15. Emergency & Support Services Directory (South African verified helplines, clinics, shelters)
+13. Fake Call Emergency Phone Settings (+27 South Africa default, area code configuration, callback linking)
+14. Activity Log & Timeline Audit (events tracking across all safety actions)
+15. Notification Engine (push/in-app alert dispatching)
+16. Emergency & Support Services Directory (South African verified helplines, clinics, shelters)
 """
 
 from __future__ import annotations
@@ -266,15 +267,19 @@ def format_e164(phone: str, default_country_code: str = "+27") -> str:
     Handles South African national prefixes (e.g., '082 123 4567' -> '+27821234567')
     and strips non-numeric characters.
     """
+    code = default_country_code.strip()
+    if not code.startswith("+"):
+        code = "+" + code
+
     clean = re.sub(r"[^\d+]", "", phone.strip())
     if not clean:
         return ""
     if clean.startswith("00"):
         clean = "+" + clean[2:]
     elif clean.startswith("0"):
-        clean = default_country_code + clean[1:]
+        clean = code + clean[1:]
     elif not clean.startswith("+"):
-        clean = "+" + clean
+        clean = code + clean
     return clean
 
 
@@ -555,14 +560,17 @@ class TelephonyService:
         message: str,
         coordinates: Optional[Tuple[float, float]] = None,
         battery_level: Optional[int] = 67,
+        user_phone: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Sends real personalized SMS alerts with Google Maps live location link
-        to every designated In Case of Emergency (ICE) contact.
+        and victim callback phone number to every designated ICE contact.
         """
         results: List[Dict[str, Any]] = []
         lat, lng = coordinates if coordinates else (-26.2041, 28.0473)
         maps_url = f"https://maps.google.com/?q={lat},{lng}"
+        callback_line = f"📞 Victim Callback: {user_phone}\n" if user_phone else ""
+        call_them_msg = f"Please call them immediately at {user_phone}" if user_phone else "Please call them immediately"
 
         for c in contacts:
             c_name = c.get("name", "Trusted Contact")
@@ -571,12 +579,13 @@ class TelephonyService:
             # Formulate clear, urgent, actionable SMS text
             sms_body = (
                 f"🚨 [TINEWE EMERGENCY ALERT] 🚨\n"
-                f"{user_name} has activated an Emergency SOS and urgently needs assistance!\n\n"
+                f"{user_name} has activated an Emergency SOS and urgently needs assistance!\n"
+                f"{callback_line}"
                 f"Message: {message}\n"
                 f"📍 Live Location: {maps_url}\n"
                 f"🔋 Battery: {battery_level}%\n"
                 f"⏰ Time: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}\n\n"
-                f"ACTION: Please call them immediately or contact emergency services (Police: 10111 / ER24: 084124)."
+                f"ACTION: {call_them_msg} or contact emergency services (Police: 10111 / ER24: 084124)."
             )
 
             res = self.send_real_sms(to_phone=phone, body=sms_body, contact_name=c_name)
@@ -590,17 +599,19 @@ class TelephonyService:
         user_name: str = "Amahle Mahlangu",
         coordinates: Optional[Tuple[float, float]] = None,
         custom_dispatch_phone: Optional[str] = None,
+        user_phone: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Places a real automated voice dispatch call to Emergency Services.
         """
         target_phone = custom_dispatch_phone or self.emergency_dispatch_phone
         lat, lng = coordinates if coordinates else (-26.2041, 28.0473)
+        contact_ref = f", reachable at phone number {user_phone}," if user_phone else ""
 
         spoken_message = (
             f"EMERGENCY ASSISTANCE REQUESTED. This is an automated priority safety dispatch "
             f"from the Tinewe Personal Safety Platform. "
-            f"Citizen {user_name} has triggered an emergency distress alert. "
+            f"Citizen {user_name}{contact_ref} has triggered an emergency distress alert. "
             f"Coordinates are latitude {lat:.4f}, longitude {lng:.4f}. "
             f"Please dispatch the nearest emergency unit immediately."
         )
@@ -781,6 +792,7 @@ class ContactsManager:
         receives_location_share: bool = False,
         receives_low_battery_alerts: bool = False,
         notification_status: str = "active",
+        country_code: str = "+27",
     ) -> Dict[str, Any]:
         if not name or not phone:
             raise ValueError("Contact name and phone number are required.")
@@ -797,7 +809,7 @@ class ContactsManager:
         contact = {
             "id": cid,
             "name": name.strip(),
-            "phone": format_e164(phone),
+            "phone": format_e164(phone, default_country_code=country_code),
             "relationship": relationship.strip(),
             "avatarColor": color,
             "initials": make_initials(name),
@@ -862,6 +874,119 @@ class ContactsManager:
             c for c in self.list_contacts()
             if c.get("receivesJourneyUpdates") and c.get("notificationStatus") == "active"
         ]
+
+
+class FakeCallManager:
+    """
+    Manages fake call configuration, user emergency dispatch phone (+27), and audio recordings.
+    Matches supabase/migrations/20261026044827_create_fake_call_audio.sql
+    """
+
+    def __init__(
+        self,
+        db: SupabaseManager,
+        default_phone: Optional[str] = None,
+        default_code: str = "+27",
+    ):
+        self.db = db
+        self.bucket = "fake-call-audio"
+        phone = (
+            default_phone
+            or os.getenv("USER_PHONE_NUMBER")
+            or os.getenv("EMERGENCY_USER_PHONE")
+            or "+27820001122"
+        ).strip()
+        code = (default_code or os.getenv("USER_COUNTRY_CODE") or "+27").strip()
+        full_phone = format_e164(phone, default_country_code=code) if phone else "+27820001122"
+
+        self.config: Dict[str, Any] = {
+            "callerName": "Dr. Naidoo",
+            "delaySeconds": 0,
+            "activeClipId": None,
+            "countryCode": code,
+            "phoneNumber": phone,
+            "fullEmergencyPhone": full_phone,
+        }
+        self._local_clips: List[Dict[str, Any]] = [
+            {
+                "id": "fc_demo_1",
+                "label": "Doctor Office Callback",
+                "storage_path": "demo/doctor_call.mp3",
+                "mime_type": "audio/mpeg",
+                "duration_ms": 12000,
+                "is_active": True,
+                "created_at": iso_now(),
+            }
+        ]
+
+    def set_emergency_phone(self, phone_number: str, country_code: str = "+27") -> Dict[str, Any]:
+        """
+        Configures the user's phone number and area code (default +27 South Africa)
+        used to send emergency text messages and call the authorities.
+        """
+        code = country_code.strip() if country_code.strip().startswith("+") else f"+{country_code.strip()}"
+        clean_num = phone_number.strip()
+        full = format_e164(clean_num, default_country_code=code)
+        self.config["countryCode"] = code
+        self.config["phoneNumber"] = clean_num
+        self.config["fullEmergencyPhone"] = full
+        logger.info("Fake Call emergency phone configured: %s (Area Code: %s)", full, code)
+        return {
+            "countryCode": code,
+            "phoneNumber": clean_num,
+            "fullEmergencyPhone": full,
+        }
+
+    def get_emergency_phone(self) -> str:
+        return self.config.get("fullEmergencyPhone") or "+27820001122"
+
+    def get_country_code(self) -> str:
+        return self.config.get("countryCode") or "+27"
+
+    def list_clips(self) -> List[Dict[str, Any]]:
+        if self.db.is_connected and self.db.client:
+            try:
+                res = self.db.client.from_("fake_call_audio").select("*").order("created_at", desc=True).execute()
+                if res.data is not None:
+                    return res.data
+            except Exception as e:
+                logger.error("Supabase list_clips error: %s", e)
+
+        return self._local_clips
+
+    def set_active_clip(self, clip_id: str) -> bool:
+        for c in self._local_clips:
+            c["is_active"] = (c["id"] == clip_id)
+
+        if self.db.is_connected and self.db.client:
+            try:
+                self.db.client.from_("fake_call_audio").update({"is_active": False}).neq("id", clip_id).execute()
+                self.db.client.from_("fake_call_audio").update({"is_active": True}).eq("id", clip_id).execute()
+                return True
+            except Exception as e:
+                logger.error("Supabase set_active_clip error: %s", e)
+
+        return any(c["is_active"] for c in self._local_clips)
+
+    def trigger_fake_call(
+        self,
+        caller_name: Optional[str] = None,
+        delay_seconds: int = 0,
+        script: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        name = caller_name or self.config["callerName"]
+        active_clips = [c for c in self.list_clips() if c.get("is_active")]
+        clip = active_clips[0] if active_clips else None
+
+        return {
+            "status": "scheduled" if delay_seconds > 0 else "incoming",
+            "callerName": name,
+            "delaySeconds": delay_seconds,
+            "script": script or "Hi, are you still coming to the meeting? Everyone is waiting for you.",
+            "audioClip": clip,
+            "emergencyPhoneLinked": self.get_emergency_phone(),
+            "scheduledAt": iso_now(),
+        }
 
 
 class JourneyManager:
@@ -987,11 +1112,13 @@ class SOSManager:
         contacts_mgr: ContactsManager,
         telephony: TelephonyService,
         profile_mgr: ProfileManager,
+        fake_call: Optional[FakeCallManager] = None,
     ):
         self.db = db
         self.contacts_mgr = contacts_mgr
         self.telephony = telephony
         self.profile_mgr = profile_mgr
+        self.fake_call = fake_call
         self.sos_state: Dict[str, Any] = {
             "activated": False,
             "contactsNotified": [],
@@ -999,6 +1126,7 @@ class SOSManager:
             "deliveryStatus": "idle",
             "timestamp": None,
             "coordinates": None,
+            "userPhone": None,
             "smsReceipts": [],
             "emergencyCallReceipt": None,
             "primaryIceCallReceipt": None,
@@ -1012,16 +1140,26 @@ class SOSManager:
         custom_message: Optional[str] = None,
         coordinates: Optional[Tuple[float, float]] = (-26.2041, 28.0473),
         battery_level: int = 67,
+        user_phone: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Activates Emergency SOS:
-        1. Really alerts all ICE contacts with real SMS messages containing GPS map links.
+        1. Really alerts all ICE contacts with real SMS messages containing GPS map links
+           and victim phone number for callback.
         2. Really calls the Primary ICE contact's phone so it rings out loud.
-        3. Really calls the Emergency Services dispatch line.
+        3. Really calls the Emergency Services dispatch line citing victim phone.
         4. Logs the full alert record to Supabase.
         """
         user = self.profile_mgr.get_profile()
         user_name = user.get("display_name", "Amahle Mahlangu")
+
+        # Resolve verified user phone number (from parameter, Fake Call settings, or profile)
+        caller_phone = (
+            user_phone
+            or (self.fake_call.get_emergency_phone() if self.fake_call else None)
+            or user.get("phone", "+27820001122")
+        )
+
         recipients = self.contacts_mgr.get_ice_recipients()
         recipient_ids = [c["id"] for c in recipients]
 
@@ -1029,13 +1167,14 @@ class SOSManager:
         msg = custom_message.strip() if custom_message else SOS_TEMPLATE
 
         # 1. Send real SMS text messages to ICE numbers
-        logger.info("Broadcasting real SMS text alerts to %d ICE contact(s)...", len(recipients))
+        logger.info("Broadcasting real SMS text alerts to %d ICE contact(s) with victim phone %s...", len(recipients), caller_phone)
         sms_receipts = self.telephony.broadcast_ice_alerts(
             contacts=recipients,
             user_name=user_name,
             message=msg,
             coordinates=coordinates,
             battery_level=battery_level,
+            user_phone=caller_phone,
         )
 
         # 2. Place real phone call to Primary ICE Contact
@@ -1050,6 +1189,7 @@ class SOSManager:
             service_category="police",
             user_name=user_name,
             coordinates=coordinates,
+            user_phone=caller_phone,
         )
 
         self.sos_state = {
@@ -1059,6 +1199,7 @@ class SOSManager:
             "deliveryStatus": "delivered",
             "timestamp": now,
             "coordinates": coordinates,
+            "userPhone": caller_phone,
             "smsReceipts": sms_receipts,
             "emergencyCallReceipt": emergency_call,
             "primaryIceCallReceipt": primary_ice_call,
@@ -1082,9 +1223,10 @@ class SOSManager:
                 logger.error("Supabase activate_sos error: %s", e)
 
         logger.warning(
-            "EMERGENCY SOS FULLY DISPATCHED! Sent %d real SMS texts, placed emergency call (%s), and alerted primary ICE.",
+            "EMERGENCY SOS FULLY DISPATCHED! Sent %d real SMS texts, placed emergency call (%s) using victim phone %s.",
             len(sms_receipts),
             emergency_call.get("sid", "n/a"),
+            caller_phone,
         )
         return self.sos_state
 
@@ -1101,6 +1243,7 @@ class SOSManager:
             "deliveryStatus": "idle",
             "timestamp": None,
             "coordinates": None,
+            "userPhone": None,
             "smsReceipts": [],
             "emergencyCallReceipt": None,
             "primaryIceCallReceipt": None,
@@ -1259,77 +1402,6 @@ class TransportManager:
         return len(self._records) < initial
 
 
-class FakeCallManager:
-    """
-    Manages fake call configuration and audio recordings stored in Supabase.
-    Matches supabase/migrations/20261026044827_create_fake_call_audio.sql
-    """
-
-    def __init__(self, db: SupabaseManager):
-        self.db = db
-        self.bucket = "fake-call-audio"
-        self.config = {
-            "callerName": "Dr. Naidoo",
-            "delaySeconds": 0,
-            "activeClipId": None,
-        }
-        self._local_clips: List[Dict[str, Any]] = [
-            {
-                "id": "fc_demo_1",
-                "label": "Doctor Office Callback",
-                "storage_path": "demo/doctor_call.mp3",
-                "mime_type": "audio/mpeg",
-                "duration_ms": 12000,
-                "is_active": True,
-                "created_at": iso_now(),
-            }
-        ]
-
-    def list_clips(self) -> List[Dict[str, Any]]:
-        if self.db.is_connected and self.db.client:
-            try:
-                res = self.db.client.from_("fake_call_audio").select("*").order("created_at", desc=True).execute()
-                if res.data is not None:
-                    return res.data
-            except Exception as e:
-                logger.error("Supabase list_clips error: %s", e)
-
-        return self._local_clips
-
-    def set_active_clip(self, clip_id: str) -> bool:
-        for c in self._local_clips:
-            c["is_active"] = (c["id"] == clip_id)
-
-        if self.db.is_connected and self.db.client:
-            try:
-                self.db.client.from_("fake_call_audio").update({"is_active": False}).neq("id", clip_id).execute()
-                self.db.client.from_("fake_call_audio").update({"is_active": True}).eq("id", clip_id).execute()
-                return True
-            except Exception as e:
-                logger.error("Supabase set_active_clip error: %s", e)
-
-        return any(c["is_active"] for c in self._local_clips)
-
-    def trigger_fake_call(
-        self,
-        caller_name: Optional[str] = None,
-        delay_seconds: int = 0,
-        script: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        name = caller_name or self.config["callerName"]
-        active_clips = [c for c in self.list_clips() if c.get("is_active")]
-        clip = active_clips[0] if active_clips else None
-
-        return {
-            "status": "scheduled" if delay_seconds > 0 else "incoming",
-            "callerName": name,
-            "delaySeconds": delay_seconds,
-            "script": script or "Hi, are you still coming to the meeting? Everyone is waiting for you.",
-            "audioClip": clip,
-            "scheduledAt": iso_now(),
-        }
-
-
 class WearablesManager:
     """Manages paired wearable devices and telemetry (battery, heart rate, fall detection)."""
 
@@ -1478,6 +1550,8 @@ class TineweBackend:
         twilio_auth_token: Optional[str] = None,
         twilio_phone_number: Optional[str] = None,
         emergency_dispatch_phone: Optional[str] = None,
+        user_phone: Optional[str] = None,
+        user_country_code: str = "+27",
     ):
         self.db = SupabaseManager(supabase_url, supabase_key)
         self.telephony = TelephonyService(
@@ -1489,14 +1563,24 @@ class TineweBackend:
         self.profile = ProfileManager(self.db)
         self.contacts = ContactsManager(self.db)
         self.journey = JourneyManager(self.db, self.contacts)
-        self.sos = SOSManager(self.db, self.contacts, self.telephony, self.profile)
+        self.fake_call = FakeCallManager(self.db, default_phone=user_phone, default_code=user_country_code)
+        self.sos = SOSManager(self.db, self.contacts, self.telephony, self.profile, self.fake_call)
         self.location = LocationSharingManager(self.db)
         self.safety_plan = SafetyPlanManager(self.db)
         self.transport = TransportManager(self.db)
-        self.fake_call = FakeCallManager(self.db)
         self.wearables = WearablesManager(self.db)
         self.events = ActivityAndNotificationManager(self.db)
         self.directory = DirectoryManager()
+
+    def set_user_phone(self, phone: str, country_code: str = "+27") -> Dict[str, Any]:
+        """Configures the user's phone number and area code under fake call settings and updates profile."""
+        res = self.fake_call.set_emergency_phone(phone, country_code)
+        self.profile.update_profile(
+            display_name=self.profile.get_profile()["display_name"],
+            email=self.profile.get_profile()["email"],
+            phone=res["fullEmergencyPhone"],
+        )
+        return res
 
     def get_system_health(self) -> Dict[str, Any]:
         return {
@@ -1504,6 +1588,7 @@ class TineweBackend:
             "timestamp": iso_now(),
             "supabase": self.db.get_status(),
             "telephony": self.telephony.get_status(),
+            "user_emergency_phone": self.fake_call.get_emergency_phone(),
             "active_journey": self.journey.get_journey()["status"] == "active",
             "sos_active": self.sos.get_status()["activated"],
             "location_sharing_active": self.location.get_status()["active"],
@@ -1545,7 +1630,14 @@ def run_tests() -> bool:
     updated_p = backend.profile.update_profile("Amahle M.", "amahle.m@tinewe.app")
     assert_true(updated_p["display_name"] == "Amahle M.", "Profile update persisted successfully")
 
-    # 3. Trusted Contacts & ICE Numbers
+    # 3. Fake Call Emergency Phone & Area Code Configuration (+27 South Africa)
+    print("\n   [TESTING FAKE CALL EMERGENCY PHONE & AREA CODE (+27)]")
+    phone_res = backend.set_user_phone(phone="082 555 7777", country_code="+27")
+    assert_true(phone_res["countryCode"] == "+27", "Country code set to +27 (South Africa)")
+    assert_true(phone_res["fullEmergencyPhone"] == "+27825557777", "E.164 phone built correctly (+27825557777)")
+    assert_true(backend.fake_call.get_emergency_phone() == "+27825557777", "Fake Call setting retrieved verified emergency phone")
+
+    # 4. Trusted Contacts & ICE Numbers
     contacts = backend.contacts.list_contacts()
     assert_true(len(contacts) >= 3, f"Contacts list loaded initial {len(contacts)} contacts")
 
@@ -1563,7 +1655,7 @@ def run_tests() -> bool:
     ice_recipients = backend.contacts.get_ice_recipients()
     assert_true(len(ice_recipients) >= 3, f"ICE recipients filter identified {len(ice_recipients)} emergency contacts")
 
-    # 4. Safe Journey Lifecycle
+    # 5. Safe Journey Lifecycle
     journey = backend.journey.start_journey(
         origin="Sandton City",
         destination="Rosebank Mall",
@@ -1588,8 +1680,8 @@ def run_tests() -> bool:
     completed = backend.journey.complete_journey()
     assert_true(completed["status"] == "completed" and completed["progress"] == 100, "Journey completed (progress 100%)")
 
-    # 5. Real Emergency Call & Real ICE SMS Alerting
-    print("\n   [TESTING EMERGENCY DISPATCH & REAL ICE SMS ALERTS]")
+    # 6. Real Emergency Call & Real ICE SMS Alerting using Configured Number
+    print("\n   [TESTING EMERGENCY DISPATCH & REAL ICE SMS ALERTS WITH LINKED PHONE]")
     sos_res = backend.sos.activate_sos(
         custom_message="Immediate assistance needed near Rosebank Mall",
         coordinates=(-26.1455, 28.0397),
@@ -1597,6 +1689,7 @@ def run_tests() -> bool:
     )
     assert_true(sos_res["activated"] is True, "SOS successfully activated")
     assert_true(sos_res["deliveryStatus"] == "delivered", "SOS delivery status set to delivered")
+    assert_true(sos_res["userPhone"] == "+27825557777", "Emergency SOS used verified user phone from Fake Call settings")
     assert_true(len(sos_res["smsReceipts"]) >= 3, f"Dispatched real SMS alerts to {len(sos_res['smsReceipts'])} ICE numbers")
     assert_true(all(r["success"] for r in sos_res["smsReceipts"]), "All ICE SMS dispatches reported success")
     assert_true(sos_res["emergencyCallReceipt"]["success"] is True, "Emergency Services call placed successfully")
@@ -1610,7 +1703,7 @@ def run_tests() -> bool:
     backend.sos.cancel_sos()
     assert_true(backend.sos.get_status()["activated"] is False, "SOS cancelled and deactivated")
 
-    # 6. Live Location Sharing
+    # 7. Live Location Sharing
     sharing = backend.location.start_sharing(contact_ids=["c1", "c2"], duration_minutes=30)
     assert_true(sharing["active"] is True, "Location sharing active for 30 minutes")
     backend.location.update_coordinates(-26.1455, 28.0397)
@@ -1618,13 +1711,13 @@ def run_tests() -> bool:
     backend.location.stop_sharing()
     assert_true(backend.location.get_status()["active"] is False, "Location sharing stopped")
 
-    # 7. Personal Safety Plan
+    # 8. Personal Safety Plan
     plan = backend.safety_plan.get_plan()
     assert_true("importantDocuments" in plan, "Safety plan retrieved important documents")
     saved_plan = backend.safety_plan.save_plan({"privateNotes": "Stored spare keys with Thandiwe."})
     assert_true(saved_plan["privateNotes"] == "Stored spare keys with Thandiwe.", "Safety plan updated private notes")
 
-    # 8. Transport / Ride Tracking
+    # 9. Transport / Ride Tracking
     transport = backend.transport.add_record(
         registration="ND 849-210",
         driver_name="Kagiso",
@@ -1637,20 +1730,21 @@ def run_tests() -> bool:
     records = backend.transport.list_records()
     assert_true(len(records) >= 1, "Transport records list returned active entries")
 
-    # 9. Wearable Integration & Biometric Telemetry
+    # 10. Wearable Integration & Biometric Telemetry
     wearable = backend.wearables.list_devices()[0]
     toggled = backend.wearables.toggle_connection(wearable["id"])
     assert_true(toggled is not None, "Wearable connection toggled")
     telemetry = backend.wearables.process_telemetry(wearable["id"], heart_rate=85, fall_detected=True)
     assert_true(telemetry["requiresSOS"] is True, "Wearable fall detection triggers emergency escalation")
 
-    # 10. Fake Call Audio & Trigger
+    # 11. Fake Call Audio & Trigger
     clips = backend.fake_call.list_clips()
     assert_true(len(clips) >= 1, "Fake call audio clips retrieved")
     fake_call = backend.fake_call.trigger_fake_call(caller_name="Mom", delay_seconds=0)
     assert_true(fake_call["callerName"] == "Mom", "Fake call configured with caller name 'Mom'")
+    assert_true(fake_call["emergencyPhoneLinked"] == "+27825557777", "Fake call linked to emergency phone +27825557777")
 
-    # 11. Activity Log & Notifications
+    # 12. Activity Log & Notifications
     backend.events.add_activity("check-in", "Test Activity", "Testing timeline audit", "check")
     activities = backend.events.list_activities()
     assert_true(any(a["title"] == "Test Activity" for a in activities), "Activity entry logged to timeline")
@@ -1660,7 +1754,7 @@ def run_tests() -> bool:
     notifications = backend.events.list_notifications()
     assert_true(any(n["id"] == notif["id"] and n["read"] for n in notifications), "Notification marked as read")
 
-    # 12. Directories
+    # 13. Directories
     police = backend.directory.search_emergency(category="police")
     assert_true(len(police) >= 1 and police[0]["phone"] == "10111", "Emergency directory returned SAPS (10111)")
     clinics = backend.directory.search_support(category="clinic")
@@ -1671,7 +1765,7 @@ def run_tests() -> bool:
 
     print("=" * 70)
     if failures == 0:
-        print(" [SUCCESS] ALL 22 VERIFICATION SUITE CHECKS PASSED PERFECTLY!")
+        print(" [SUCCESS] ALL 26 VERIFICATION SUITE CHECKS PASSED PERFECTLY!")
     else:
         print(f" [WARNING] {failures} test(s) failed. Check logs above.")
     print("=" * 70)
@@ -1684,6 +1778,8 @@ def run_tests() -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Tinewe Backend Safety & Emergency Telephony")
+    parser.add_argument("--phone", type=str, help="Configure user emergency phone number (e.g. 0821234567)")
+    parser.add_argument("--code", type=str, default="+27", help="Country/area code (default +27 for South Africa)")
     parser.add_argument("--test-sms", type=str, help="Send a real test SMS to a phone number (e.g. +27821234567)")
     parser.add_argument("--test-call", type=str, help="Place a real test voice call to a phone number (e.g. +27821234567)")
     parser.add_argument("--trigger-sos", action="store_true", help="Trigger live SOS dispatch (SMS to ICE numbers + Emergency call)")
@@ -1691,6 +1787,10 @@ def main():
 
     args = parser.parse_args()
     backend = TineweBackend()
+
+    if args.phone:
+        saved = backend.set_user_phone(phone=args.phone, country_code=args.code)
+        print(f"\n[CONFIGURED] User Emergency Phone: {saved['fullEmergencyPhone']} (Country Code: {saved['countryCode']})")
 
     if args.test_sms:
         print(f"\nSending real SMS to {args.test_sms}...")

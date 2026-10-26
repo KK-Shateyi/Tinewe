@@ -5,13 +5,29 @@ import * as React from 'react';
 export interface FakeCallConfig {
   callerName: string;
   delaySeconds: number;
+  countryCode: string;
+  phoneNumber: string;
+  fullEmergencyPhone: string;
 }
 
 const STORAGE_KEY = 'tinewe-fake-call-config';
 const DEFAULT_CONFIG: FakeCallConfig = {
   callerName: 'Dr. Naidoo',
   delaySeconds: 0,
+  countryCode: '+27',
+  phoneNumber: '',
+  fullEmergencyPhone: '',
 };
+
+export function buildE164(code: string, phone: string): string {
+  const cleanCode = code.trim().startsWith('+') ? code.trim() : `+${code.trim()}`;
+  let cleanNumber = phone.replace(/[^\d]/g, '');
+  if (cleanNumber.startsWith('0')) {
+    cleanNumber = cleanNumber.slice(1);
+  }
+  if (!cleanNumber) return '';
+  return `${cleanCode}${cleanNumber}`;
+}
 
 export function useFakeCallConfig() {
   const [config, setConfig] = React.useState<FakeCallConfig>(DEFAULT_CONFIG);
@@ -22,12 +38,19 @@ export function useFakeCallConfig() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<FakeCallConfig>;
+        const code = parsed.countryCode?.trim() || DEFAULT_CONFIG.countryCode;
+        const num = parsed.phoneNumber?.trim() || '';
+        const full = buildE164(code, num);
+
         setConfig({
           callerName: parsed.callerName?.trim() || DEFAULT_CONFIG.callerName,
           delaySeconds:
             typeof parsed.delaySeconds === 'number' && parsed.delaySeconds >= 0
               ? parsed.delaySeconds
               : DEFAULT_CONFIG.delaySeconds,
+          countryCode: code,
+          phoneNumber: num,
+          fullEmergencyPhone: full,
         });
       }
     } catch {
@@ -37,9 +60,11 @@ export function useFakeCallConfig() {
   }, []);
 
   const save = React.useCallback((next: FakeCallConfig) => {
-    setConfig(next);
+    const full = buildE164(next.countryCode, next.phoneNumber);
+    const updated = { ...next, fullEmergencyPhone: full };
+    setConfig(updated);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch {
       // storage may be unavailable; state still updates in-memory
     }
