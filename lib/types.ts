@@ -140,7 +140,7 @@ export interface ConnectivityState {
   gpsAvailable: boolean;
   batteryLevel: number | null;
   batteryCharging: boolean;
-  lastSynced: string;
+  lastSynced: string | null;
 }
 
 export interface SafetyStatus {

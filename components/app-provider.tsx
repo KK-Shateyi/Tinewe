@@ -150,11 +150,11 @@ const initialSafetyPlan: SafetyPlan = {
 };
 
 const initialConnectivity: ConnectivityState = {
-  online: true,
-  gpsAvailable: true,
-  batteryLevel: 67,
+  online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+  gpsAvailable: false,
+  batteryLevel: null,
   batteryCharging: false,
-  lastSynced: '2026-10-24T08:35:00',
+  lastSynced: null,
 };
 
 const initialNotifications: AppNotification[] = [
@@ -443,6 +443,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (active) setProfileLoading(false);
     })();
     return () => { active = false; };
+  }, []);
+
+  // Live device connectivity monitoring
+  React.useEffect(() => {
+    const goOnline = () => setConnectivityState((prev) => ({ ...prev, online: true, lastSynced: new Date().toISOString() }));
+    const goOffline = () => setConnectivityState((prev) => ({ ...prev, online: false }));
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+    let watchId: number | null = null;
+    const onSuccess = () => setConnectivityState((prev) => ({ ...prev, gpsAvailable: true }));
+    const onError = (err: GeolocationPositionError) => {
+      if (err.code === err.PERMISSION_DENIED) {
+        setConnectivityState((prev) => ({ ...prev, gpsAvailable: false }));
+      }
+    };
+    // Quick permission probe
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, { timeout: 4000, maximumAge: 60000 });
+    watchId = navigator.geolocation.watchPosition(onSuccess, onError, { timeout: 30000, maximumAge: 15000 });
+    return () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const nav = navigator as Navigator & { getBattery?: () => Promise<any> };
+    if (typeof nav.getBattery !== 'function') return;
+    let battery: any;
+    let cleanup = () => {};
+    nav.getBattery().then((b) => {
+      battery = b;
+      const update = () =>
+        setConnectivityState((prev) => ({
+          ...prev,
+          batteryLevel: Math.round(b.level * 100),
+          batteryCharging: b.charging,
+        }));
+      update();
+      const listeners: [string, () => void][] = [
+        ['levelchange', update],
+        ['chargingchange', update],
+      ];
+      listeners.forEach(([evt, fn]) => b.addEventListener(evt, fn));
+      cleanup = () => listeners.forEach(([evt, fn]) => b.removeEventListener(evt, fn));
+    });
+    return () => cleanup();
   }, []);
 
   const value: AppContextValue = {

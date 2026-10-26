@@ -130,12 +130,29 @@ export function DashboardPage() {
       ? [
           {
             label: 'Battery',
-            value: `${connectivity.batteryLevel}%`,
+            value: connectivity.batteryCharging
+              ? `${connectivity.batteryLevel}% charging`
+              : `${connectivity.batteryLevel}%`,
             active: connectivity.batteryLevel > 20,
             icon: connectivity.batteryLevel <= 20 ? BatteryLow : Battery,
           },
         ]
-      : []),
+      : [
+          {
+            label: 'Battery',
+            value: 'Unknown',
+            active: false,
+            icon: Battery,
+          },
+        ]),
+    {
+      label: 'Last synced',
+      value: connectivity.lastSynced
+        ? new Date(connectivity.lastSynced).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })
+        : '—',
+      active: connectivity.lastSynced !== null,
+      icon: Clock,
+    },
   ];
 
   return (
