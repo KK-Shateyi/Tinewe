@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS sos_alerts (
   delivery_status text DEFAULT 'pending',
   latitude numeric,
   longitude numeric,
+  sms_receipts jsonb DEFAULT '[]'::jsonb,
+  emergency_call_sid text,
   created_at timestamptz DEFAULT now()
 );
 
