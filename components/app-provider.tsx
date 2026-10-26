@@ -15,6 +15,7 @@ import type {
   UserProfile,
 } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/auth-provider';
 import {
   initialContacts,
   initialActivities,
@@ -99,6 +100,9 @@ interface AppContextValue {
   profile: UserProfile;
   profileLoading: boolean;
   saveProfile: (p: UserProfile) => Promise<boolean>;
+
+  // Auth
+  signOut: () => Promise<void>;
 }
 
 const AppContext = React.createContext<AppContextValue | null>(null);
@@ -186,6 +190,7 @@ const initialNotifications: AppNotification[] = [
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
+  const { user, signOut: authSignOut } = useAuth();
   const [currentPage, setCurrentPage] = React.useState<NavKey>('dashboard');
   const [onboarded, setOnboardedState] = React.useState(true);
   const [discreetMode, setDiscreetModeState] = React.useState(false);
@@ -415,7 +420,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProfile(p);
     const { error } = await supabase
       .from('profiles')
-      .upsert({ id: 1, display_name: p.displayName, email: p.email, updated_at: new Date().toISOString() });
+      .upsert({
+        id: user?.id,
+        display_name: p.displayName,
+        email: p.email,
+        updated_at: new Date().toISOString(),
+      });
     if (error) {
       toast({ title: 'Could not save profile', description: error.message, variant: 'destructive' });
       return false;
@@ -427,23 +437,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       icon: 'user',
     });
     return true;
-  }, [toast, addActivity]);
+  }, [toast, addActivity, user?.id]);
+
+  const signOut = React.useCallback(async () => {
+    await authSignOut();
+  }, [authSignOut]);
 
   React.useEffect(() => {
+    if (!user) {
+      setProfile({ displayName: '', email: '' });
+      setProfileLoading(false);
+      return;
+    }
     let active = true;
+    setProfileLoading(true);
     (async () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('display_name, email')
-        .eq('id', 1)
+        .eq('id', user.id)
         .maybeSingle();
       if (active && !error && data) {
         setProfile({ displayName: data.display_name, email: data.email });
+      } else if (active && !error && !data) {
+        // Profile row may not be created yet; fall back to auth metadata.
+        const meta = user.user_metadata as { full_name?: string } | null;
+        setProfile({
+          displayName: meta?.full_name || user.email || '',
+          email: user.email ?? '',
+        });
       }
       if (active) setProfileLoading(false);
     })();
     return () => { active = false; };
-  }, []);
+  }, [user]);
 
   // Live device connectivity monitoring
   React.useEffect(() => {
@@ -546,6 +573,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     profile,
     profileLoading,
     saveProfile,
+    signOut,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

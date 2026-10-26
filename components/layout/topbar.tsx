@@ -49,7 +49,7 @@ const pageTitles: Record<NavKey, { title: string; subtitle: string }> = {
 };
 
 export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
-  const { currentPage, navigate, notifications, connectivity, contacts, markNotificationRead, clearNotifications, profile } = useApp();
+  const { currentPage, navigate, notifications, connectivity, contacts, markNotificationRead, clearNotifications, profile, signOut } = useApp();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -199,7 +199,7 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
               Trusted contacts ({contacts.length})
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onClick={() => void signOut()}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
             </DropdownMenuItem>

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/auth-provider';
 
 export interface FakeCallAudio {
   id: string;
@@ -20,6 +21,7 @@ const BUCKET = 'fake-call-audio';
  * is the one played when the fake call is triggered.
  */
 export function useFakeCallAudio() {
+  const { user } = useAuth();
   const [clips, setClips] = React.useState<FakeCallAudio[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -47,7 +49,8 @@ export function useFakeCallAudio() {
     async (file: File, label?: string): Promise<FakeCallAudio | null> => {
       setError(null);
       const ext = file.name.split('.').pop()?.toLowerCase() ?? 'audio';
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+      const folder = user?.id ?? 'unknown';
+      const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
       const { error: upError } = await supabase.storage
         .from(BUCKET)
         .upload(path, file, { contentType: file.type || 'audio/mpeg' });
@@ -73,7 +76,7 @@ export function useFakeCallAudio() {
       await refresh();
       return data as FakeCallAudio;
     },
-    [refresh]
+    [refresh, user?.id]
   );
 
   const setActive = React.useCallback(

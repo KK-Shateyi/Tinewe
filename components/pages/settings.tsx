@@ -36,7 +36,7 @@ export function SettingsPage() {
   const {
     discreetMode, setDiscreetMode, pinEnabled, setPinEnabled, discreetPin, setDiscreetPin,
     connectivity, setConnectivity, navigate, wearables, toggleWearableConnection,
-    profile, profileLoading, saveProfile,
+    profile, profileLoading, saveProfile, signOut,
   } = useApp();
   const { toast } = useToast();
   const [showDelete, setShowDelete] = React.useState(false);
@@ -338,6 +338,10 @@ export function SettingsPage() {
             <p className="text-xs text-muted-foreground">With you, every step.</p>
             <p className="mt-2 text-xs text-muted-foreground">Version 1.0.0 — Hackathon MVP</p>
             <p className="text-xs text-muted-foreground">Developed by Special Devs for FNB AOTY 2026</p>
+            <Button variant="outline" className="mt-4 w-full" onClick={() => void signOut()}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </Button>
           </div>
         </StaggerItem>
       </StaggerContainer>

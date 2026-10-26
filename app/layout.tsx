@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Manrope, Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProvider } from '@/components/auth-provider';
 import { AppProvider } from '@/components/app-provider';
 
 const manrope = Manrope({
@@ -54,7 +55,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AppProvider>{children}</AppProvider>
+          <AuthProvider>
+            <AppProvider>{children}</AppProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
