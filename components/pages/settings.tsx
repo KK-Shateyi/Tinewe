@@ -3,7 +3,7 @@
 import * as React from 'react';
 import {
   Moon, Sun, User, Shield, MapPin, Bell, Eye, Trash2, Watch,
-  Calculator, Lock, Wifi, Battery, Accessibility, ChevronRight,
+  Calculator, Lock, Wifi, Battery, Accessibility, ChevronRight, LogOut,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useApp } from '@/components/app-provider';
