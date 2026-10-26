@@ -87,6 +87,7 @@ export function DashboardPage() {
     startJourney,
     resumeJourney,
     pauseJourney,
+    profile,
   } = useApp();
   const { triggerCall } = useFakeCall();
   const { config } = useFakeCallConfig();
@@ -147,7 +148,7 @@ export function DashboardPage() {
               <div className="max-w-lg">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-sm">
                   <Sparkles className="h-3 w-3" />
-                  Welcome back, Amahle
+                  Welcome back, {profile.displayName.split(' ')[0]}
                 </div>
                 <h1 className="font-display text-3xl font-bold leading-tight text-white sm:text-4xl">
                   We're with you, every step.

@@ -20,6 +20,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -34,12 +36,40 @@ export function SettingsPage() {
   const {
     discreetMode, setDiscreetMode, pinEnabled, setPinEnabled, discreetPin, setDiscreetPin,
     connectivity, setConnectivity, navigate, wearables, toggleWearableConnection,
+    profile, profileLoading, saveProfile,
   } = useApp();
+  const { toast } = useToast();
   const [showDelete, setShowDelete] = React.useState(false);
   const [discreetGuardOpen, setDiscreetGuardOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState(profile.displayName);
+  const [emailDraft, setEmailDraft] = React.useState(profile.email);
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => setMounted(true), []);
+  React.useEffect(() => {
+    setNameDraft(profile.displayName);
+    setEmailDraft(profile.email);
+  }, [profile.displayName, profile.email]);
+
+  const handleSaveProfile = async () => {
+    const name = nameDraft.trim();
+    const email = emailDraft.trim();
+    if (!name) {
+      toast({ title: 'Name required', description: 'Please enter a display name.', variant: 'destructive' });
+      return;
+    }
+    if (!email) {
+      toast({ title: 'Email required', description: 'Please enter an email address.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    const ok = await saveProfile({ displayName: name, email });
+    setSaving(false);
+    if (ok) {
+      toast({ title: 'Profile saved', description: 'Your details have been updated.' });
+    }
+  };
 
   return (
     <PageContainer>
@@ -86,23 +116,29 @@ export function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary text-xl font-bold text-white">
-                  AM
+                  {profileLoading ? '··' : profile.displayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1">
-                  <p className="font-display text-base font-semibold">Amahle Mahlangu</p>
-                  <p className="text-sm text-muted-foreground">amahle@tinewe.app</p>
+                  <p className="font-display text-base font-semibold">{profileLoading ? 'Loading…' : profile.displayName}</p>
+                  <p className="text-sm text-muted-foreground">{profileLoading ? '…' : profile.email}</p>
                   <Badge variant="outline" className="mt-1">Free plan</Badge>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="name">Display name</Label>
-                  <Input id="name" defaultValue="Amahle Mahlangu" />
+                  <Input id="name" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} disabled={profileLoading || saving} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" defaultValue="amahle@tinewe.app" />
+                  <Input id="email" type="email" value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} disabled={profileLoading || saving} />
                 </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveProfile} disabled={profileLoading || saving}>
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save changes
+                </Button>
               </div>
             </CardContent>
           </Card>

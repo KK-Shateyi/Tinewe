@@ -49,7 +49,7 @@ const pageTitles: Record<NavKey, { title: string; subtitle: string }> = {
 };
 
 export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
-  const { currentPage, navigate, notifications, connectivity, contacts, markNotificationRead, clearNotifications } = useApp();
+  const { currentPage, navigate, notifications, connectivity, contacts, markNotificationRead, clearNotifications, profile } = useApp();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -169,10 +169,10 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-full border border-border p-1 pr-2 transition-colors hover:bg-muted">
               <div className="flex h-8 w-8 items-center justify-center rounded-full gradient-primary text-xs font-bold text-white">
-                AM
+                {profile.displayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
               <div className="hidden text-left sm:block">
-                <p className="text-xs font-semibold leading-tight text-foreground">Amahle M.</p>
+                <p className="text-xs font-semibold leading-tight text-foreground">{profile.displayName.split(' ')[0]} {profile.displayName.split(' ').slice(1).map((n) => n[0] + '.').join(' ')}</p>
                 <p className="text-[10px] text-muted-foreground">Free plan</p>
               </div>
               <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
@@ -181,8 +181,8 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold">Amahle Mahlangu</span>
-                <span className="text-xs font-normal text-muted-foreground">amahle@tinewe.app</span>
+                <span className="text-sm font-semibold">{profile.displayName}</span>
+                <span className="text-xs font-normal text-muted-foreground">{profile.email}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

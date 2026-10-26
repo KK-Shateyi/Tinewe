@@ -12,7 +12,9 @@ import type {
   WearableDevice,
   AppNotification,
   ConnectivityState,
+  UserProfile,
 } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 import {
   initialContacts,
   initialActivities,
@@ -92,6 +94,11 @@ interface AppContextValue {
   locationSharingExpiry: number | null;
   startLocationSharing: (contactIds: string[], durationMinutes: number) => void;
   stopLocationSharing: () => void;
+
+  // Profile
+  profile: UserProfile;
+  profileLoading: boolean;
+  saveProfile: (p: UserProfile) => Promise<boolean>;
 }
 
 const AppContext = React.createContext<AppContextValue | null>(null);
@@ -198,6 +205,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [locationSharing, setLocationSharing] = React.useState(false);
   const [locationSharingContacts, setLocationSharingContacts] = React.useState<string[]>([]);
   const [locationSharingExpiry, setLocationSharingExpiry] = React.useState<number | null>(null);
+
+  const [profile, setProfile] = React.useState<UserProfile>({
+    displayName: 'Amahle Mahlangu',
+    email: 'amahle@tinewe.app',
+  });
+  const [profileLoading, setProfileLoading] = React.useState(true);
 
   const navigate = React.useCallback((page: NavKey) => {
     setCurrentPage(page);
@@ -398,6 +411,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setPinEnabled = React.useCallback((v: boolean) => setPinEnabledState(v), []);
   const setDiscreetPin = React.useCallback((v: string) => setDiscreetPinState(v.replace(/\D/g, '').slice(0, 6)), []);
 
+  const saveProfile = React.useCallback(async (p: UserProfile): Promise<boolean> => {
+    setProfile(p);
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({ id: 1, display_name: p.displayName, email: p.email, updated_at: new Date().toISOString() });
+    if (error) {
+      toast({ title: 'Could not save profile', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    addActivity({
+      type: 'safety-plan-saved',
+      title: 'Profile updated',
+      description: 'Your profile details were saved',
+      icon: 'user',
+    });
+    return true;
+  }, [toast, addActivity]);
+
+  React.useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name, email')
+        .eq('id', 1)
+        .maybeSingle();
+      if (active && !error && data) {
+        setProfile({ displayName: data.display_name, email: data.email });
+      }
+      if (active) setProfileLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
   const value: AppContextValue = {
     currentPage,
     navigate,
@@ -443,6 +490,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     locationSharingExpiry,
     startLocationSharing,
     stopLocationSharing,
+    profile,
+    profileLoading,
+    saveProfile,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

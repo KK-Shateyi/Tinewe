@@ -150,3 +150,8 @@ export interface SafetyStatus {
   batteryLevel: number | null;
   nextCheckIn: string | null;
 }
+
+export interface UserProfile {
+  displayName: string;
+  email: string;
+}
