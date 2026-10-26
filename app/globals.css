@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode — Blue, Teal & Mint */
+    --background: 204 47% 98%; /* #F7FBFD */
+    --foreground: 205 42% 21%; /* #163B52 */
+    --card: 0 0% 100%;
+    --card-foreground: 205 42% 21%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 205 42% 21%;
+    --primary: 205 71% 21%; /* #103F5C */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 187 100% 31%; /* #008F9C */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 205 40% 90%; /* soft blue-grey */
+    --muted-foreground: 202 22% 49%; /* #678293 */
+    --accent: 166 75% 44%; /* #27B59A */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 349 61% 57%; /* #D94E62 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 205 35% 90%; /* #DFEAF0 */
+    --input: 205 35% 90%;
+    --ring: 187 100% 31%;
+    --radius: 1rem;
+
+    /* Extended brand tokens */
+    --navy: 205 71% 21%;
+    --teal: 187 100% 31%;
+    --emerald: 166 75% 44%;
+    --mint: 164 62% 90%; /* #D9F5EC */
+    --pastel-blue: 200 71% 92%; /* #D9EFF9 */
+    --soft-mint: 164 62% 90%;
+    --success: 152 62% 40%;
+    --warning: 38 92% 50%;
+    --error: 349 61% 57%;
+
+    --chart-1: 187 100% 31%;
+    --chart-2: 166 75% 44%;
+    --chart-3: 205 71% 21%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 349 61% 57%;
+
+    --primary-gradient: linear-gradient(135deg, #103F5C 0%, #008F9C 50%, #27B59A 100%);
+    --secondary-gradient: linear-gradient(135deg, #D9EFF9 0%, #D9F5EC 100%);
+    --emergency-gradient: linear-gradient(135deg, #D94E62 0%, #c93b50 100%);
+
+    --glass-bg: 0 0% 100%;
+    --glass-border: 205 35% 88%;
+    --glass-blur: 12px;
+  }
+
+  .dark {
+    /* Dark mode — Purple, Rose & Lavender */
+    --background: 262 28% 10%; /* #171321 */
+    --foreground: 282 47% 97%; /* #F7F2FC */
+    --card: 273 26% 17%; /* #292035 */
+    --card-foreground: 282 47% 97%;
+    --popover: 273 26% 17%;
+    --popover-foreground: 282 47% 97%;
+    --primary: 270 33% 49%; /* #7554A6 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 333 50% 51%; /* #BD4975 */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 270 22% 24%;
+    --muted-foreground: 285 20% 78%; /* #C6B7D2 */
+    --accent: 269 57% 80%; /* #C8ADEB */
+    --accent-foreground: 262 28% 12%;
+    --destructive: 351 77% 70%; /* #F27385 */
+    --destructive-foreground: 262 28% 10%;
+    --border: 270 21% 28%; /* #493B57 */
+    --input: 270 21% 28%;
+    --ring: 270 33% 49%;
+
+    /* Extended brand tokens */
+    --navy: 270 33% 49%;
+    --teal: 333 50% 51%;
+    --emerald: 269 57% 80%;
+    --mint: 270 22% 24%;
+    --pastel-blue: 200 71% 85%; /* #AED8EE */
+    --soft-mint: 270 22% 24%;
+    --success: 152 52% 60%;
+    --warning: 38 90% 60%;
+    --error: 351 77% 70%;
+
+    --chart-1: 270 33% 49%;
+    --chart-2: 333 50% 51%;
+    --chart-3: 269 57% 80%;
+    --chart-4: 200 71% 85%;
+    --chart-5: 351 77% 70%;
+
+    --primary-gradient: linear-gradient(135deg, #7554A6 0%, #BD4975 60%, #C8ADEB 100%);
+    --secondary-gradient: linear-gradient(135deg, #30213F 0%, #493052 100%);
+    --emergency-gradient: linear-gradient(135deg, #F27385 0%, #BD4975 100%);
+
+    --glass-bg: 273 26% 20%;
+    --glass-border: 270 25% 35%;
+    --glass-blur: 14px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  ::selection {
+    @apply bg-primary/20;
+  }
+}
+
+@layer components {
+  .glass {
+    background: hsl(var(--glass-bg) / 0.7);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid hsl(var(--glass-border) / 0.6);
+  }
+  .glass-strong {
+    background: hsl(var(--glass-bg) / 0.85);
+    backdrop-filter: blur(calc(var(--glass-blur) + 4px));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 4px));
+    border: 1px solid hsl(var(--glass-border) / 0.5);
+  }
+  .gradient-primary {
+    background-image: var(--primary-gradient);
+  }
+  .gradient-secondary {
+    background-image: var(--secondary-gradient);
+  }
+  .gradient-emergency {
+    background-image: var(--emergency-gradient);
+  }
+  .text-gradient {
+    background-image: var(--primary-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Leaflet map styling overrides */
+.leaflet-container {
+  background: hsl(var(--muted));
+  font-family: inherit;
+}
+.leaflet-popup-content-wrapper {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border));
+}
+.leaflet-popup-tip {
+  background: hsl(var(--card));
+}
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
+
+/* Smooth theme transitions */
+.theme-transition,
+.theme-transition * {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Pulse ring animation for SOS */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* Shimmer for loading */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--muted) / 0.5),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}

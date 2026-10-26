@@ -1,0 +1,9 @@
+
+> nextjs@0.1.0 build
+> next build
+
+   Creating an optimized production build...
+ ✓ Compiled successfully
+   Skipping linting
+   Checking validity of types...
+   Collecting page data...
