@@ -151,7 +151,7 @@ const initialConnectivity: ConnectivityState = {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
-  const { user, signOut: authSignOut } = useApp();
+  const { user, signOut: authSignOut } = useAuth();
   const [currentPage, setCurrentPage] = React.useState<NavKey>('dashboard');
   const [onboarded, setOnboardedState] = React.useState(true);
   const [discreetMode, setDiscreetModeState] = React.useState(false);

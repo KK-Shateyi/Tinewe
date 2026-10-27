@@ -537,9 +537,15 @@ export function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-1">
-                {recentActivities.map((activity) => (
+                {recentActivities.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                    No recent activity yet
+                  </div>
+                ) : (
+                recentActivities.map((activity) => (
                   <ActivityRow key={activity.id} activity={activity} />
-                ))}
+                ))
+                )}
               </CardContent>
             </Card>
           </StaggerItem>

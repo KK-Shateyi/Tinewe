@@ -112,7 +112,7 @@ export function LocationPage() {
                     </div>
                   </div>
                   <Button
-                    onClick={stopLocationSharing}
+                    onClick={() => void stopLocationSharing()}
                     variant="destructive"
                     size="sm"
                     className="mt-3 w-full"
@@ -190,7 +190,7 @@ export function LocationPage() {
 
                 {!locationSharing ? (
                   <Button
-                    onClick={() => startLocationSharing(selectedContacts, selectedDuration)}
+                    onClick={() => void startLocationSharing(selectedContacts, selectedDuration)}
                     disabled={selectedContacts.length === 0}
                     className="w-full gradient-primary text-white"
                     size="lg"
@@ -200,7 +200,7 @@ export function LocationPage() {
                   </Button>
                 ) : (
                   <Button
-                    onClick={stopLocationSharing}
+                    onClick={() => void stopLocationSharing()}
                     variant="destructive"
                     className="w-full"
                     size="lg"

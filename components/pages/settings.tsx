@@ -30,6 +30,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -68,6 +69,28 @@ export function SettingsPage() {
     setSaving(false);
     if (ok) {
       toast({ title: 'Profile saved', description: 'Your details have been updated.' });
+    }
+  };
+
+  const handleDeleteAllData = async () => {
+    const tables = [
+      'trusted_contacts',
+      'activity_logs',
+      'app_notifications',
+      'safety_plans',
+      'transport_records',
+      'wearable_devices',
+    ];
+    let anyError = false;
+    for (const table of tables) {
+      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) anyError = true;
+    }
+    if (anyError) {
+      toast({ title: 'Some data could not be deleted', description: 'Please try again.', variant: 'destructive' });
+    } else {
+      toast({ title: 'All data deleted', description: 'Your safety data has been permanently removed.' });
+      window.location.reload();
     }
   };
 
@@ -294,7 +317,12 @@ export function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {wearables.map((w) => (
+              {wearables.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                  No wearables connected yet
+                </div>
+              ) : (
+              wearables.map((w) => (
                 <div key={w.id} className="flex items-center gap-3 rounded-lg bg-muted/40 p-3">
                   <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', w.connected ? 'gradient-primary text-white' : 'bg-muted text-muted-foreground')}>
                     <Watch className="h-4 w-4" />
@@ -303,9 +331,10 @@ export function SettingsPage() {
                     <p className="text-sm font-medium">{w.name}</p>
                     <p className="text-xs text-muted-foreground">{w.connected ? `Connected${w.battery !== null ? ` • ${w.battery}%` : ''}` : 'Disconnected'}</p>
                   </div>
-                  <Switch checked={w.connected} onCheckedChange={() => toggleWearableConnection(w.id)} />
+                  <Switch checked={w.connected} onCheckedChange={() => void toggleWearableConnection(w.id)} />
                 </div>
-              ))}
+              ))
+              )}
             </CardContent>
           </Card>
         </StaggerItem>
@@ -356,7 +385,7 @@ export function SettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => setShowDelete(false)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={() => { void handleDeleteAllData(); setShowDelete(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete Everything
             </AlertDialogAction>
           </AlertDialogFooter>

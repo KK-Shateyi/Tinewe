@@ -25,7 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export function TransportPage() {
-  const { transportRecords, addTransportRecord, removeTransportRecord, contacts } = useApp();
+  const { transportRecords, transportLoading, addTransportRecord, removeTransportRecord, contacts, contactsLoading } = useApp();
   const [form, setForm] = React.useState({
     registration: '',
     driverName: '',
@@ -36,10 +36,13 @@ export function TransportPage() {
   });
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.registration.trim()) return;
-    addTransportRecord(form);
+    setSaving(true);
+    await addTransportRecord(form);
+    setSaving(false);
     setForm({ registration: '', driverName: '', driverId: '', vehicleType: 'Uber', tripDetails: '', sharedWith: [] });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -147,7 +150,11 @@ export function TransportPage() {
                 <div>
                   <Label className="mb-2 block">Share with trusted contacts</Label>
                   <div className="flex flex-wrap gap-2">
-                    {contacts.map((c) => {
+                    {contactsLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading contacts…</p>
+                    ) : contacts.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No contacts yet. Add a trusted contact first to share trip details.</p>
+                    ) : contacts.map((c) => {
                       const selected = form.sharedWith.includes(c.id);
                       return (
                         <button
@@ -168,9 +175,8 @@ export function TransportPage() {
                   </div>
                 </div>
 
-                <Button onClick={handleSave} className="w-full gradient-primary text-white" disabled={!form.registration.trim()}>
-                  {saved ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-                  {saved ? 'Saved!' : 'Log Transport Details'}
+                <Button onClick={handleSave} className="w-full gradient-primary text-white" disabled={!form.registration.trim() || saving}>
+                  {saving ? 'Saving…' : saved ? <><CheckCircle2 className="mr-2 h-4 w-4" />Saved!</> : <><Plus className="mr-2 h-4 w-4" />Log Transport Details</>}
                 </Button>
               </CardContent>
             </Card>
@@ -199,7 +205,13 @@ export function TransportPage() {
                   <SectionTitle title="Logged Trips" icon={Car} subtitle={`${transportRecords.length} record(s)`} />
                 </CardHeader>
                 <CardContent>
-                  {transportRecords.length === 0 ? (
+                  {transportLoading ? (
+                    <div className="space-y-3">
+                      {[0, 1].map((i) => (
+                        <div key={i} className="h-20 animate-pulse rounded-xl bg-muted/40" />
+                      ))}
+                    </div>
+                  ) : transportRecords.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted-foreground">No transport records yet</p>
                   ) : (
                     <div className="space-y-3">
@@ -258,7 +270,7 @@ export function TransportPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (deleteId) removeTransportRecord(deleteId); setDeleteId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={() => { if (deleteId) void removeTransportRecord(deleteId); setDeleteId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
