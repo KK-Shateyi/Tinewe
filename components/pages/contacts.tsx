@@ -36,10 +36,11 @@ const eventConfig = [
 ];
 
 export function ContactsPage() {
-  const { contacts, addContact, updateContact, removeContact } = useApp();
+  const { contacts, contactsLoading, addContact, updateContact, removeContact } = useApp();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
   const [form, setForm] = React.useState<{
     name: string;
     phone: string;
@@ -90,20 +91,22 @@ export function ContactsPage() {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim() || !form.phone.trim()) return;
+    setSaving(true);
     if (editingId) {
-      updateContact(editingId, form);
+      await updateContact(editingId, form);
     } else {
-      addContact(form);
+      await addContact(form);
     }
+    setSaving(false);
     setDialogOpen(false);
     resetForm();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deleteId) {
-      removeContact(deleteId);
+      await removeContact(deleteId);
       setDeleteId(null);
     }
   };
@@ -131,9 +134,9 @@ export function ContactsPage() {
         <StaggerItem>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Total Contacts', value: contacts.length, color: 'text-primary' },
-              { label: 'Active', value: activeCount, color: 'text-success' },
-              { label: 'Paused', value: pausedCount, color: 'text-muted-foreground' },
+              { label: 'Total Contacts', value: contactsLoading ? '—' : contacts.length, color: 'text-primary' },
+              { label: 'Active', value: contactsLoading ? '—' : activeCount, color: 'text-success' },
+              { label: 'Paused', value: contactsLoading ? '—' : pausedCount, color: 'text-muted-foreground' },
             ].map((stat) => (
               <Card key={stat.label} className="text-center">
                 <CardContent className="pt-4 pb-4">
@@ -146,7 +149,15 @@ export function ContactsPage() {
         </StaggerItem>
 
         {/* Contact cards */}
-        {contacts.length === 0 ? (
+        {contactsLoading ? (
+          <StaggerItem>
+            <div className="grid gap-4 md:grid-cols-2">
+              {[0, 1, 2, 3].map((i) => (
+                <Card key={i} className="h-48 animate-pulse bg-muted/40" />
+              ))}
+            </div>
+          </StaggerItem>
+        ) : contacts.length === 0 ? (
           <StaggerItem>
             <EmptyState
               icon={Users}
@@ -282,9 +293,9 @@ export function ContactsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
-            <Button onClick={handleSave} className="gradient-primary text-white">
-              {editingId ? 'Save Changes' : 'Add Contact'}
+            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="gradient-primary text-white">
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Add Contact'}
             </Button>
           </DialogFooter>
         </DialogContent>

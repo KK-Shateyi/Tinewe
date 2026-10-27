@@ -51,7 +51,7 @@ const typeColors: Record<string, string> = {
 };
 
 export function ActivityPage() {
-  const { activities, notifications, markNotificationRead, clearNotifications } = useApp();
+  const { activities, activitiesLoading, notifications, notificationsLoading, markNotificationRead, clearNotifications } = useApp();
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-ZA', {
@@ -94,6 +94,18 @@ export function ActivityPage() {
                 <p className="mb-4 text-xs text-muted-foreground">
                   Activity entries are privacy-conscious and avoid displaying sensitive information unnecessarily.
                 </p>
+                {activitiesLoading ? (
+                  <div className="space-y-2">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
+                    ))}
+                  </div>
+                ) : activities.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Activity className="mb-3 h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">No activity yet. Your safety actions will appear here.</p>
+                  </div>
+                ) : (
                 <div className="space-y-1">
                   {activities.map((activity) => {
                     const Icon = iconMap[activity.icon] || Activity;
@@ -114,6 +126,7 @@ export function ActivityPage() {
                     );
                   })}
                 </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -133,7 +146,13 @@ export function ActivityPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {notifications.length === 0 ? (
+                {notificationsLoading ? (
+                  <div className="space-y-2">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/40" />
+                    ))}
+                  </div>
+                ) : notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Bell className="mb-3 h-8 w-8 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">No notifications</p>

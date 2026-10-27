@@ -23,16 +23,23 @@ import { cn } from '@/lib/utils';
 import type { SafetyPlan as SafetyPlanType } from '@/lib/types';
 
 export function SafetyPlanPage() {
-  const { safetyPlan, saveSafetyPlan, contacts, navigate } = useApp();
+  const { safetyPlan, safetyPlanLoading, saveSafetyPlan, contacts, contactsLoading, navigate } = useApp();
   const [plan, setPlan] = React.useState<SafetyPlanType>(safetyPlan);
   const [newDoc, setNewDoc] = React.useState('');
   const [newOrg, setNewOrg] = React.useState('');
   const [newLocation, setNewLocation] = React.useState('');
   const [showDelete, setShowDelete] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
 
-  const handleSave = () => {
-    saveSafetyPlan(plan);
+  React.useEffect(() => {
+    setPlan(safetyPlan);
+  }, [safetyPlan]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await saveSafetyPlan(plan);
+    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -79,9 +86,8 @@ export function SafetyPlanPage() {
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete Plan
                 </Button>
-                <Button onClick={handleSave} className="gradient-primary text-white">
-                  {saved ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
-                  {saved ? 'Saved!' : 'Save Plan'}
+                <Button onClick={handleSave} disabled={saving || safetyPlanLoading} className="gradient-primary text-white">
+                  {saving ? 'Saving…' : saved ? <><CheckCircle2 className="mr-2 h-4 w-4" />Saved!</> : <><Save className="mr-2 h-4 w-4" />Save Plan</>}
                 </Button>
               </div>
             }
@@ -120,7 +126,14 @@ export function SafetyPlanPage() {
                 <SectionTitle title="Trusted Contacts" icon={Users} subtitle="Your safety network" />
               </CardHeader>
               <CardContent className="space-y-2">
-                {contacts.map((c) => {
+                {contactsLoading ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">Loading contacts…</p>
+                ) : contacts.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                    No contacts yet. Add a trusted contact first.
+                  </div>
+                ) : (
+                contacts.map((c) => {
                   const selected = plan.trustedContacts.includes(c.id);
                   return (
                     <button
@@ -148,7 +161,8 @@ export function SafetyPlanPage() {
                       {selected && <CheckCircle2 className="h-4 w-4 text-primary" />}
                     </button>
                   );
-                })}
+                })
+                )}
                 <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('contacts')}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Add new contact
