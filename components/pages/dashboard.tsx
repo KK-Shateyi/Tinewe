@@ -400,7 +400,7 @@ export function DashboardPage() {
                   </Button>
                 </div>
                 <p className="rounded-lg bg-muted/50 p-2 text-center text-[10px] text-muted-foreground">
-                  SOS requires confirmation before sending. Test contacts are used in this demo.
+                  SOS requires confirmation before sending. Real SMS alerts are sent to your trusted contacts.
                 </p>
               </CardContent>
             </Card>

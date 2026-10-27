@@ -4,7 +4,7 @@ import * as React from 'react';
 import { motion } from 'framer-motion';
 import {
   Siren, Phone, MapPin, Send, AlertTriangle, CheckCircle2, X,
-  Users, Shield, Clock,
+  Users, Shield, Clock, Loader2,
 } from 'lucide-react';
 import { useApp } from '@/components/app-provider';
 import {
@@ -44,13 +44,13 @@ export function EmergencyPage() {
   React.useEffect(() => {
     if (!confirming) return;
     if (countdown <= 0) {
-      activateSOS();
+      void activateSOS(customMessage);
       setConfirming(false);
       return;
     }
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [confirming, countdown, activateSOS]);
+  }, [confirming, countdown, activateSOS, customMessage]);
 
   const startConfirm = () => {
     setCountdown(5);
@@ -140,7 +140,7 @@ export function EmergencyPage() {
 
                 {!confirming && !sos.activated && (
                   <p className="max-w-sm text-center text-xs text-muted-foreground">
-                    Press and hold to activate. SOS requires confirmation before sending. Test contacts and simulated alerts are used in this demo.
+                    Press to activate. SOS requires confirmation before sending. Real SMS alerts are sent to your trusted contacts via Twilio.
                   </p>
                 )}
 
@@ -152,18 +152,27 @@ export function EmergencyPage() {
                   >
                     <div className={cn(
                       'flex items-center gap-3 rounded-xl p-3',
-                      sos.deliveryStatus === 'delivered' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
+                      sos.deliveryStatus === 'delivered' && 'bg-success/10 text-success',
+                      sos.deliveryStatus === 'pending' && 'bg-warning/10 text-warning',
+                      sos.deliveryStatus === 'failed' && 'bg-destructive/10 text-destructive'
                     )}>
-                      {sos.deliveryStatus === 'delivered' ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                      {sos.deliveryStatus === 'delivered' ? <CheckCircle2 className="h-5 w-5" /> : sos.deliveryStatus === 'pending' ? <Loader2 className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
                       <div className="flex-1 text-sm">
                         <p className="font-semibold">
-                          {sos.deliveryStatus === 'delivered' ? 'Alert delivered' : 'Alert pending'}
+                          {sos.deliveryStatus === 'delivered' ? 'Alert delivered' : sos.deliveryStatus === 'pending' ? 'Sending alert…' : 'Alert failed'}
                         </p>
                         <p className="text-xs opacity-80">
-                          {connectivity.online ? `${sos.contactsNotified.length} contacts notified` : 'No connection — alert queued'}
+                          {sos.deliveryStatus === 'pending'
+                            ? 'Capturing location and sending SMS to contacts…'
+                            : `${sos.contactsNotified.length} contact(s) notified`}
                         </p>
                       </div>
                     </div>
+                    {sos.deliveryStatus === 'failed' && (
+                      <p className="rounded-lg bg-destructive/5 p-2.5 text-xs text-destructive">
+                        SMS delivery failed. Please call emergency services directly using the buttons below.
+                      </p>
+                    )}
                     <Button variant="outline" className="w-full" onClick={() => { cancelSOS(); clearSOS(); }}>
                       Clear Alert
                     </Button>

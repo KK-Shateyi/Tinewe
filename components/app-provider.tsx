@@ -49,7 +49,7 @@ interface AppContextValue {
   setJourneyField: (patch: Partial<JourneyState>) => void;
 
   sos: SOSState;
-  activateSOS: () => void;
+  activateSOS: (message?: string) => Promise<void>;
   cancelSOS: () => void;
   clearSOS: () => void;
 
@@ -715,28 +715,98 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // --- SOS -------------------------------------------------------------------
-  const activateSOS = React.useCallback(() => {
-    playAlertTone(880, 0.16, 3);
-    const notified = contacts.filter((c) => c.receivesSOSAlerts).map((c) => c.id);
-    setSos((prev) => ({
-      ...prev,
-      activated: true,
-      deliveryStatus: 'delivered',
-      timestamp: new Date().toISOString(),
-      contactsNotified: notified,
-    }));
-    void addActivity({
-      type: 'sos-sent',
-      title: 'SOS alert sent',
-      description: 'Emergency alert sent to trusted contacts',
-      icon: 'siren',
-    });
-    void addNotification({
-      title: 'SOS alert sent',
-      body: `Emergency alert sent to ${notified.length} trusted contact(s).`,
-      type: 'emergency',
-    });
-  }, [contacts, addActivity, addNotification]);
+  const activateSOS = React.useCallback(
+    async (message?: string) => {
+      playAlertTone(880, 0.16, 3);
+      const sosContacts = contacts.filter((c) => c.receivesSOSAlerts);
+      const notified = sosContacts.map((c) => c.id);
+      const alertMessage = message || sos.message;
+
+      setSos((prev) => ({
+        ...prev,
+        activated: true,
+        deliveryStatus: 'pending',
+        timestamp: new Date().toISOString(),
+        contactsNotified: notified,
+        message: alertMessage,
+      }));
+
+      // Capture real GPS coordinates
+      let latitude: number | undefined;
+      let longitude: number | undefined;
+      if ('geolocation' in navigator) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 8000,
+              maximumAge: 30000,
+            });
+          });
+          latitude = pos.coords.latitude;
+          longitude = pos.coords.longitude;
+        } catch {
+          // GPS unavailable — send without location
+        }
+      }
+
+      // Call the edge function to send real SMS via Twilio
+      const { data: session } = await supabase.auth.getSession();
+      const apiUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/functions/v1/send-sos`;
+
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.session?.access_token || ''}`,
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+          },
+          body: JSON.stringify({
+            contacts: sosContacts.map((c) => ({ name: c.name, phone: c.phone })),
+            message: alertMessage,
+            latitude,
+            longitude,
+            userName: profile.displayName,
+          }),
+        });
+
+        const result = await res.json();
+
+        if (res.ok && result.success) {
+          setSos((prev) => ({
+            ...prev,
+            deliveryStatus: 'delivered',
+          }));
+          const failedCount = result.failed || 0;
+          await addNotification({
+            title: 'SOS alert sent',
+            body: `Emergency SMS sent to ${result.delivered} of ${result.totalContacts} contact(s).${failedCount > 0 ? ' Some deliveries failed.' : ''}`,
+            type: 'emergency',
+          });
+        } else {
+          setSos((prev) => ({ ...prev, deliveryStatus: 'failed' }));
+          const errMsg = result.error === 'SMS service not configured'
+            ? 'SMS service (Twilio) is not yet configured. Add Twilio credentials to enable real alerts.'
+            : result.detail || result.error || 'Failed to send SOS.';
+          toast({ title: 'SOS could not be sent', description: errMsg, variant: 'destructive' });
+          await addNotification({
+            title: 'SOS delivery failed',
+            body: errMsg,
+            type: 'emergency',
+          });
+        }
+      } catch (err) {
+        setSos((prev) => ({ ...prev, deliveryStatus: 'failed' }));
+        toast({ title: 'SOS could not be sent', description: 'Network error. Please call emergency services directly.', variant: 'destructive' });
+      }
+
+      // Reload activity + notifications (the edge function also inserts records)
+      void loadActivities();
+      void loadNotifications();
+    },
+    [contacts, sos.message, profile.displayName, toast, addNotification, loadActivities, loadNotifications]
+  );
 
   const cancelSOS = React.useCallback(() => {
     setSos((prev) => ({ ...prev, activated: false, deliveryStatus: 'idle' }));

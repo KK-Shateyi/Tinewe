@@ -70,6 +70,8 @@ export function SOSOverlay() {
               'flex items-center gap-3 rounded-xl p-3',
               sos.deliveryStatus === 'delivered'
                 ? 'bg-success/10 text-success'
+                : sos.deliveryStatus === 'pending'
+                ? 'bg-warning/10 text-warning'
                 : sos.deliveryStatus === 'failed'
                 ? 'bg-destructive/10 text-destructive'
                 : 'bg-muted text-muted-foreground'
@@ -77,6 +79,8 @@ export function SOSOverlay() {
           >
             {sos.deliveryStatus === 'delivered' ? (
               <CheckCircle2 className="h-5 w-5 shrink-0" />
+            ) : sos.deliveryStatus === 'pending' ? (
+              <AlertTriangle className="h-5 w-5 shrink-0 animate-pulse" />
             ) : (
               <AlertTriangle className="h-5 w-5 shrink-0" />
             )}
@@ -84,14 +88,16 @@ export function SOSOverlay() {
               <p className="font-semibold">
                 {sos.deliveryStatus === 'delivered'
                   ? 'Alert delivered'
+                  : sos.deliveryStatus === 'pending'
+                  ? 'Sending alert…'
                   : sos.deliveryStatus === 'failed'
                   ? 'Alert not delivered'
                   : 'Sending alert...'}
               </p>
               <p className="text-xs opacity-80">
-                {connectivity.online
-                  ? `${notifiedContacts.length} contact(s) notified`
-                  : 'No internet connection — alert will be queued'}
+                {sos.deliveryStatus === 'pending'
+                  ? 'Capturing location and sending SMS…'
+                  : `${notifiedContacts.length} contact(s) notified`}
               </p>
             </div>
           </div>
@@ -101,7 +107,7 @@ export function SOSOverlay() {
             <MapPin className="h-5 w-5 shrink-0 text-secondary" />
             <div className="flex-1 text-sm">
               <p className="font-medium">Location attached</p>
-              <p className="text-xs text-muted-foreground">Sandton, Johannesburg (simulated)</p>
+              <p className="text-xs text-muted-foreground">Your live GPS coordinates are included in the SMS</p>
             </div>
           </div>
 
