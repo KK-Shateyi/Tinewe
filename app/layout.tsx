@@ -40,14 +40,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCfSk0U5bGfOJL4D6QzvApe0"
-          crossOrigin=""
-        />
-      </head>
       <body className={`${manrope.variable} ${inter.variable} font-sans`}>
         <ThemeProvider
           attribute="class"

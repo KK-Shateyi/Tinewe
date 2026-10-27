@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MapView } from '@/components/map-view';
-import { sandtonCoords } from '@/lib/mock-data';
+import { defaultMapCenter } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 
 const durations = [
@@ -33,6 +33,17 @@ export function LocationPage() {
   const [selectedContacts, setSelectedContacts] = React.useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = React.useState(30);
   const [remaining, setRemaining] = React.useState(0);
+  const [livePos, setLivePos] = React.useState<[number, number]>(defaultMapCenter);
+
+  React.useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setLivePos([pos.coords.latitude, pos.coords.longitude]),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   React.useEffect(() => {
     if (!locationSharing || !locationSharingExpiry) return;
@@ -69,11 +80,11 @@ export function LocationPage() {
         {/* Map */}
         <StaggerItem>
           <div className="relative overflow-hidden rounded-3xl border border-border">
-            <div className="h-[400px]">
+            <div className="h-[300px] sm:h-[400px]">
               <MapView
-                origin={sandtonCoords}
-                destination={sandtonCoords}
-                currentPosition={sandtonCoords}
+                origin={livePos}
+                destination={livePos}
+                currentPosition={livePos}
                 showRoute={false}
                 followCurrent={true}
               />
@@ -140,6 +151,9 @@ export function LocationPage() {
               <CardContent className="space-y-5">
                 <div>
                   <p className="mb-2 text-sm font-medium">Select trusted contacts</p>
+                  {contacts.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No contacts yet. Add trusted contacts to share your location with.</p>
+                  ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {contacts.map((c) => {
                       const selected = selectedContacts.includes(c.id);
@@ -165,6 +179,7 @@ export function LocationPage() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
 
                 <div>

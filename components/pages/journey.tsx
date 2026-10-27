@@ -4,7 +4,7 @@ import * as React from 'react';
 import { motion } from 'framer-motion';
 import {
   Navigation, MapPin, Clock, Route, TrafficCone, Search, Play, Pause,
-  Flag, ArrowRight, Car, Footprints, Bike, Bus, Circle, CheckCircle2,
+  Flag, ArrowRight, Car, CheckCircle2, Circle, Loader2,
 } from 'lucide-react';
 import { useApp } from '@/components/app-provider';
 import {
@@ -16,10 +16,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MapView } from '@/components/map-view';
-import { sandtonCoords, rosebankCoords } from '@/lib/mock-data';
+import { geocodePlace, interpolate } from '@/lib/geocode';
+import { defaultMapCenter } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 
 const routeOptions = [
@@ -45,21 +45,69 @@ export function JourneyPage() {
   const [origin, setOrigin] = React.useState(journey.origin);
   const [destination, setDestination] = React.useState(journey.destination);
 
+  // Geocoded coordinates for the entered origin / destination
+  const [originCoords, setOriginCoords] = React.useState<[number, number]>(defaultMapCenter);
+  const [destCoords, setDestCoords] = React.useState<[number, number]>(defaultMapCenter);
+  const [geocoding, setGeocoding] = React.useState<'idle' | 'origin' | 'destination' | 'both'>('idle');
+  const [geoError, setGeoError] = React.useState<string | null>(null);
+
+  // Resolve coordinates for whatever the user has typed
+  const resolveGeocode = React.useCallback(async (which: 'origin' | 'destination' | 'both') => {
+    setGeoError(null);
+    if (which === 'origin' || which === 'both') {
+      if (!origin.trim()) {
+        setOriginCoords(defaultMapCenter);
+      } else {
+        setGeocoding(which === 'both' ? 'both' : 'origin');
+        const result = await geocodePlace(origin);
+        setGeocoding('idle');
+        if (result) {
+          setOriginCoords([result.lat, result.lon]);
+        } else {
+          setGeoError('Could not find the starting location on the map.');
+        }
+      }
+    }
+    if (which === 'destination' || which === 'both') {
+      if (!destination.trim()) {
+        setDestCoords(defaultMapCenter);
+      } else {
+        setGeocoding(which === 'both' ? 'both' : 'destination');
+        const result = await geocodePlace(destination);
+        setGeocoding('idle');
+        if (result) {
+          setDestCoords([result.lat, result.lon]);
+        } else {
+          setGeoError(prev => prev ?? 'Could not find the destination on the map.');
+        }
+      }
+    }
+  }, [origin, destination]);
+
+  // Auto-geocode with a debounce as the user types
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void resolveGeocode('both');
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [origin, destination, resolveGeocode]);
+
   const currentPos: [number, number] = React.useMemo(() => {
     const t = journey.progress / 100;
-    return [
-      sandtonCoords[0] + (rosebankCoords[0] - sandtonCoords[0]) * t,
-      sandtonCoords[1] + (rosebankCoords[1] - sandtonCoords[1]) * t,
-    ];
-  }, [journey.progress]);
+    return interpolate(originCoords, destCoords, t);
+  }, [journey.progress, originCoords, destCoords]);
 
   const handleStart = () => {
-    startJourney(origin, destination);
+    void resolveGeocode('both').then(() => {
+      startJourney(origin, destination);
+    });
   };
 
   const handleSimulateProgress = () => {
     updateJourneyProgress(Math.min(100, journey.progress + 15));
   };
+
+  const mapHasRealData = origin.trim().length > 0 || destination.trim().length > 0;
 
   return (
     <PageContainer>
@@ -80,31 +128,45 @@ export function JourneyPage() {
         {/* Map with floating status card */}
         <StaggerItem>
           <div className="relative overflow-hidden rounded-3xl border border-border">
-            <div className="h-[400px] sm:h-[500px]">
+            <div className="h-[350px] sm:h-[450px] lg:h-[500px]">
               <MapView
-                origin={sandtonCoords}
-                destination={rosebankCoords}
-                currentPosition={currentPos}
-                showRoute={true}
+                origin={originCoords}
+                destination={destCoords}
+                currentPosition={journey.status !== 'idle' ? currentPos : undefined}
+                showRoute={mapHasRealData}
                 followCurrent={journey.status === 'active'}
               />
             </div>
+
+            {geocoding !== 'idle' && (
+              <div className="absolute left-1/2 top-4 z-[400] -translate-x-1/2 rounded-full bg-card/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-lg backdrop-blur">
+                <Loader2 className="mr-1.5 inline h-3 w-3 animate-spin" />
+                Looking up location…
+              </div>
+            )}
+
+            {geoError && (
+              <div className="absolute bottom-4 left-4 right-4 z-[400] rounded-xl bg-destructive/10 px-4 py-2 text-xs text-destructive backdrop-blur sm:left-6 sm:right-auto sm:max-w-sm">
+                {geoError}
+              </div>
+            )}
 
             {/* Floating status card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass-strong absolute left-4 right-4 top-4 z-[400] rounded-2xl p-4 sm:left-6 sm:right-auto sm:top-6 sm:max-w-sm"
+              className="glass-strong absolute left-3 right-3 top-3 z-[400] rounded-2xl p-3 sm:left-5 sm:right-auto sm:top-5 sm:max-w-sm sm:p-4"
             >
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between sm:mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-                    <Navigation className="h-4 w-4 text-white" />
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-primary sm:h-8 sm:w-8">
+                    <Navigation className="h-3.5 w-3.5 text-white sm:h-4 sm:w-4" />
                   </div>
-                  <span className="font-display text-sm font-bold">Journey Status</span>
+                  <span className="font-display text-xs font-bold sm:text-sm">Journey Status</span>
                 </div>
                 <Badge
                   className={cn(
+                    'text-[10px] sm:text-xs',
                     journey.status === 'active' && 'bg-success/15 text-success border-success/20',
                     journey.status === 'idle' && 'bg-muted text-muted-foreground',
                     journey.status === 'paused' && 'bg-warning/15 text-warning border-warning/20',
@@ -118,23 +180,23 @@ export function JourneyPage() {
                 </Badge>
               </div>
 
-              <div className="space-y-2 text-sm">
+              <div className="space-y-1.5 text-xs sm:space-y-2 sm:text-sm">
                 <div className="flex items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-secondary" />
-                  <span className="truncate text-muted-foreground">{journey.origin}</span>
+                  <MapPin className="h-3 w-3 shrink-0 text-secondary sm:h-3.5 sm:w-3.5" />
+                  <span className="truncate text-muted-foreground">{journey.origin || 'Enter a starting point'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Navigation className="h-3.5 w-3.5 shrink-0 text-accent" />
-                  <span className="truncate font-medium text-foreground">{journey.destination}</span>
+                  <Navigation className="h-3 w-3 shrink-0 text-accent sm:h-3.5 sm:w-3.5" />
+                  <span className="truncate font-medium text-foreground">{journey.destination || 'Enter a destination'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <Clock className="h-3 w-3 shrink-0 text-muted-foreground sm:h-3.5 sm:w-3.5" />
                   <span className="text-muted-foreground">ETA: <span className="font-medium text-foreground">{journey.eta}</span></span>
                 </div>
               </div>
 
               {journey.status !== 'idle' && (
-                <div className="mt-3 space-y-1.5">
+                <div className="mt-2 space-y-1.5 sm:mt-3">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Progress</span>
                     <span className="font-medium">{journey.progress}%</span>
@@ -143,8 +205,8 @@ export function JourneyPage() {
                 </div>
               )}
 
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <CheckCircle2 className="h-3.5 w-3.5 text-secondary" />
+              <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground sm:mt-3 sm:text-xs">
+                <CheckCircle2 className="h-3 w-3 text-secondary sm:h-3.5 sm:w-3.5" />
                 {journey.contactsReceivingUpdates.length} contacts receiving updates
               </div>
             </motion.div>
@@ -156,7 +218,7 @@ export function JourneyPage() {
           <Card>
             <CardContent className="flex flex-wrap items-center gap-3 pt-6">
               {journey.status === 'idle' && (
-                <Button onClick={handleStart} size="lg" className="gradient-primary text-white">
+                <Button onClick={handleStart} size="lg" className="gradient-primary text-white" disabled={!origin.trim() || !destination.trim()}>
                   <Play className="mr-2 h-4 w-4" />
                   Start Journey
                 </Button>
@@ -211,16 +273,33 @@ export function JourneyPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="origin">Starting location</Label>
-                  <Input id="origin" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Enter starting point" />
+                  <Input
+                    id="origin"
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value)}
+                    placeholder="e.g. Sandton City, Johannesburg"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="destination">Destination</Label>
-                  <Input id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Search destination" />
+                  <Input
+                    id="destination"
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    placeholder="e.g. Rosebank Mall, Johannesburg"
+                  />
                 </div>
-                <Button onClick={handleStart} className="w-full gradient-primary text-white" disabled={journey.status === 'active'}>
+                <Button
+                  onClick={handleStart}
+                  className="w-full gradient-primary text-white"
+                  disabled={journey.status === 'active' || !origin.trim() || !destination.trim()}
+                >
                   <Navigation className="mr-2 h-4 w-4" />
                   Start Safe Journey
                 </Button>
+                <p className="text-center text-[11px] text-muted-foreground">
+                  Locations are looked up on OpenStreetMap. The map updates as you type.
+                </p>
               </CardContent>
             </Card>
           </StaggerItem>
@@ -272,7 +351,12 @@ export function JourneyPage() {
                 <div>
                   <Label className="mb-2 block">Contacts for journey updates</Label>
                   <div className="space-y-2">
-                    {contacts.map((c) => {
+                    {contacts.length === 0 ? (
+                      <p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+                        No contacts yet. Add trusted contacts to share journey updates with.
+                      </p>
+                    ) : (
+                    contacts.map((c) => {
                       const checked = journey.contactsReceivingUpdates.includes(c.id);
                       return (
                         <div key={c.id} className="flex items-center gap-3 rounded-lg bg-muted/40 p-2">
@@ -291,7 +375,8 @@ export function JourneyPage() {
                           <span className="text-sm">{c.name}</span>
                         </div>
                       );
-                    })}
+                    })
+                    )}
                   </div>
                 </div>
               </CardContent>
